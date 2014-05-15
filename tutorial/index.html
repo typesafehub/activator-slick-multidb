@@ -1,0 +1,160 @@
+<html>
+<head>
+    <title>Slick Multi-DB Patterns - Activator Template</title>
+</head>
+<body>
+
+<div>
+    <h2>Introduction</h2>
+    
+    <p>If you have gone through basic Slick tutorials like the <a href="https://typesafe.com/activator/template/hello-slick" target="_blank">Hello Slick</a> template, you probably noticed that they import features directly from database drivers, as in:</p>
+
+    <pre><code>// Use H2Driver to connect to an H2 database
+import scala.slick.driver.H2Driver.simple._</code></pre>
+
+    <p>This is the easiest way to use Slick but it makes it impossible to abstract over database drivers.</p>
+
+    <p>In many applications you want to be able to target different database systems, for example for running unit tests against an embedded database but using an enterprise-scale database server for integration tests and production. This tutorial will show you how to design your application to enable these use cases.</p>
+</div>
+
+<div>
+    <h2>A DAO Class</h2>
+
+    <p>We will start with a simple DAO (data access object) class, <a href="#code/src/main/scala/basic/DAO.scala" class="shortcut">DAO.scala</a>. It contains some database-related definitions (for a <code>PROPS</code> table that acts as a simple key/value store) and methods (for storing and reading entries).</p>
+
+    <p>The class is parameterized by a Slick driver of type <code>JdbcProfile</code> and imports all query language features from this driver's <code>simple</code> object:</p>
+
+    <pre><code>class DAO(val driver: JdbcProfile) {
+        import driver.simple._</code></pre>
+
+    <p>Slick has multiple profiles but in most cases you will want to use <code>JdbcProfile</code> which contains all the features that you also get when importing directly from one of Slick's standard drivers.</p>
+</div>
+
+<div>
+    <h2>Queries Outside of The DAO</h2>
+
+    <p>Outside of the DAO class, you can still refer to its driver and the other features, but you have to get the imports from the driver in order to work with queries. This can be seen in <a href="#code/src/main/scala/basic/DAOHelper.scala" class="shortcut">DAOHelper.scala</a>. It defines a new method <code>restrictKey</code> which we could have also put directly into the DAO class.</p>
+
+    <p>To gain access to all the driver's features, we parameterize the <code>DAOHelper</code> with the <code>DAO</code> and import from its driver:</p>
+
+    <pre><code>class DAOHelper(val d: DAO) {
+  import dao.driver.simple._</code></pre>
+
+    <p>Note the use of the type projection <code>DAO#Props</code> in the definition of <code>restrictKey</code>:</p>
+
+    <pre><code>def restrictKey(s: String,
+      q: Query[DAO#Props, _]) = ...</code></pre>
+
+    <p>This points to the <code>Props</code> type coming from any <code>DAO</code> instance. This is less type-safe then using a path-dependent type like <code>dao.Props</code> but generally easier to use. You still need to ensure not to mix drivers when you do this.</p>
+</div>
+
+<div>
+    <h2>Running The App</h2>
+
+    <p>We are using the DAO and DAOHelper in <a href="#code/src/main/scala/basic/MultiDBExample.scala" class="shortcut">MultiDBExample.scala</a>.  You can see the output of this app in <a href="#run" class="shortcut">Run</a>.</p>
+
+    <p>The <code>run</code> method is parameterized with both, a Slick driver and a matching JDBC <code>Database</code>:</p>
+
+    <pre><code>def run(dao: DAO, db: Database)</code></pre>
+
+    <p>Since we don't have the convenience of a single driver's <code>simple._</code> import at this point, we need to import the <code>Database</code> and <code>Session</code> types directly from <code>JdbcBackend</code>:
+
+    <code><pre>import scala.slick.jdbc.JdbcBackend.{Database, Session}</pre></code>
+
+    <p>In the body of <code>MultiDBExample</code>, we create two <code>DAO</code> instances with matching <code>Database</code> objects in order to run the same code on both, H2 and SQLite.</p>
+</div>
+
+<div>
+    <h2>The Cake Pattern</h2>
+
+    <p>In more complex designs where you want to split up the database code into separate modules that deal with different database entities, but still have dependencies between these modules, you can use the <a href="http://jonasboner.com/2008/10/06/real-world-scala-dependency-injection-di/" target="_blank">Cake Pattern</a> to structure your code.</p>
+
+    <p>We are doing this here in a new app <a href="#code/src/main/scala/cake/MultiDBCakeExample.scala" class="shortcut">MultiDBCakeExample.scala</a>. When you switch to the <a href="#run" class="shortcut">Run</a> page, you can choose to start this instead of the default app.</p>
+
+    <p>From the point of view of this main app, the new approach looks exactly like the previous one: You create a <code>DAL</code> (data access layer) object with a Slick <code>Driver</code>, and use it together with a matching <code>Database</code>.</p>
+</div>
+
+<div>
+    <h2>DriverComponent</h2>
+
+    <p>The most basic slice of the cake is the <a href="#code/src/main/scala/cake/DriverComponent.scala" class="shortcut">DriverComponent</a>. It provides a <code>JdbcProfile</code>-based driver which is kept abstract at this point:</p>
+
+    <code><pre>val driver: JdbcProfile</pre></code>
+</div>
+
+<div>
+    <h2>PictureComponent</h2>
+
+    <p>Through the use of a <em>self-type</em>, the <a href="#code/src/main/scala/cake/PictureComponent.scala" class="shortcut">PictureComponent</a> requires a <code>DriverComponent</code> to me mixed in, so that it can import the query language features from the driver:</p>
+
+    <code><pre>trait PictureComponent {
+        this: DriverComponent =>
+  import driver.simple._</pre></code>
+
+    <p>Using the imported features, <code>PictureComponent</code> provides definitions and methods for working with <code>Picture</code> objects in the database.</p>
+</div>
+
+<div>
+    <h2>UserComponent</h2>
+
+    <p><a href="#code/src/main/scala/cake/UserComponent.scala" class="shortcut">UserComponent</a> does the same for <code>User</code> entities. In addition to <code>DriverComponent</code> it also requires <code>PictureComponent</code>:</p>
+
+    <code><pre>trait UserComponent {
+        this: DriverComponent
+        with PictureComponent =>
+  import driver.simple._</pre></code>
+
+    <p>The <code>PictureComponent</code> dependency allows <code>UserComponent</code> to insert a new <code>Picture</code> when needed:</p>
+
+    <code><pre>val pic =
+  if(user.picture.id.isEmpty) insert(user.picture)
+  else user.picture</pre></code>
+</div>
+
+<div>
+    <h2>Baking The Cake</h2>
+
+    <p>We put all slices of the cake together in <a href="#code/src/main/scala/cake/DAL.scala" class="shortcut">DAL.scala</a>. The <code>DAL</code> class inherits from all components and adds the missing <code>driver</code> through a constructor val:</p>
+
+    <code><pre>class DAL(val driver: JdbcProfile)
+      extends UserComponent
+         with PictureComponent
+         with DriverComponent {</pre></code>
+
+    <p>This is also a good place to add functionality that affects all components, like the <code>create</code> method:</p>
+
+    <code><pre>def create(implicit session: Session) =
+  (users.ddl ++ pictures.ddl).create</pre></code>
+</div>
+
+<div>
+    <h2>Custom Database Functions</h2>
+
+    <p>Sometimes you need to use a (possibly database-specific) function that is not provided out of the box by Slick. For scalar functions (i.e. functions which operate on single-column values, but not aggregation functions) this is very easy to do, as shown in <a href="#code/src/main/scala/native/CallNativeDBFunction.scala" class="shortcut">CallNativeDBFunction.scala</a>.</p>
+
+    <p>H2 has a <code>day_of_week()</code> function which extracts the day of week from a timestamp value. We lift it to a Slick <code>SimpleFunction</code> which returns a <code>Column[Int]</code>. For functions with zero to three arguments, you can use the provided factory methods, as shown in the definition of <code>dayOfWeek</code>:</p>
+
+    <code><pre>val dayOfWeek =
+  SimpleFunction.unary[Date, Int]("day_of_week")</pre></code>
+
+    <p>For other arities you can get a generic untyped <code>SimpleFunction</code> and wrap that in a method which defines the correct parameter types, as shown in <code>dayOfWeek2</code> (untyped, varargs-based parameters) and <code>dayOfWeek3</code> (wrapper method):</p>
+
+    <code><pre>val dayOfWeek2 =
+  SimpleFunction[Int]("day_of_week")
+
+def dayOfWeek3(c: Column[Date]) =
+  dayOfWeek2(Seq(c))</pre></code>
+
+    <p>The app then goes on to use <code>dayOfWeek</code> in a query, just like a built-in function. You can see the result by switching to the <a href="#run" class="shortcut">Run</a> page and selecting <code>CallNativeDBFunction</code> as the main class.</p>
+</div>
+
+<div>
+    <h2>Next Steps</h2>
+
+    <p>Check out the full <a href="http://slick.typesafe.com/doc/2.0.2/" target="_blank">Slick manual and API docs</a>.</p>
+
+    <p>You can also find more Slick templates, contributed by both, the Slick team at Typesafe and the community, <a href="/home" class="shortcut">right here in Activator</a>.</p>
+</div>
+
+</body>
+</html>
