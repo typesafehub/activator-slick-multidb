@@ -1,3 +1,4 @@
+import scala.language.higherKinds
 import scala.slick.driver.JdbcProfile
 
 /** All database code goes into the DAO (data access object) class which
@@ -27,5 +28,5 @@ class DAO(val driver: JdbcProfile) {
     (for(p <- props if p.key === k) yield p.value).firstOption
 
   /** Get the first element for a Query from this DAO */
-  def getFirst[M, U](q: Query[M, U])(implicit s: Session) = q.first
+  def getFirst[M, U, C[_]](q: Query[M, U, C])(implicit s: Session) = q.first
 }
