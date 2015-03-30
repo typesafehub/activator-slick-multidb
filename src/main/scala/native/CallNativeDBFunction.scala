@@ -1,5 +1,9 @@
-import scala.slick.driver.H2Driver.simple._
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
+import scala.concurrent.ExecutionContext.Implicits.global
 import java.sql.Date
+
+import slick.driver.H2Driver.api._
 
 /** This example shows how to lift a native database function
   * to Slick's query language.
@@ -19,9 +23,16 @@ object CallNativeDBFunction extends App {
 
   def dayOfWeek3(c: Column[Date]) = dayOfWeek2(Seq(c))
 
-  val db = Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver")
-  db withSession { implicit session =>
-    salesPerDay.ddl.create
+  // Use the lifted function in a query to group by day of week
+  val q1 = for {
+    (dow, q) <- salesPerDay
+      .map(s => (dayOfWeek(s.day), s.count))
+      .groupBy(_._1)
+  } yield (dow, q.map(_._2).sum)
+
+  val db = Database.forConfig("h2")
+  val f = db.run(DBIO.seq(
+    salesPerDay.ddl.create,
     salesPerDay ++= Seq(
       (Date.valueOf("2011-04-01"), 3),
       (Date.valueOf("2011-04-02"), 8),
@@ -34,16 +45,13 @@ object CallNativeDBFunction extends App {
       (Date.valueOf("2011-04-09"), 4),
       (Date.valueOf("2011-04-10"), 0),
       (Date.valueOf("2011-04-11"), 2)
-    )
+    ),
+    q1.result.map { r =>
+      println("Day of week (1 = Sunday) -> Sales:")
+      r.foreach { case (dow, sum) => println("  " + dow + "\t->\t" + sum) }
+    }
+  ))
 
-    // Use the lifted function in a query to group by day of week
-    val q1 = for {
-      (dow, q) <- salesPerDay
-                  .map(s => (dayOfWeek(s.day), s.count))
-                  .groupBy(_._1)
-    } yield (dow, q.map(_._2).sum)
-
-    println("Day of week (1 = Sunday) -> Sales:")
-    q1.foreach { case (dow, sum) => println("  " + dow + "\t->\t" + sum) }
-  }
+  Await.result(f, Duration.Inf)
+  db.close()
 }

@@ -1,26 +1,35 @@
-import scala.slick.driver.{H2Driver, SQLiteDriver}
-import scala.slick.jdbc.JdbcBackend.{Database, Session}
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
+
+import slick.dbio.DBIO
+import slick.driver.{H2Driver, SQLiteDriver}
+import slick.jdbc.JdbcBackend.Database
 
 /** Run SLICK code with multiple drivers. */
 object MultiDBExample extends App {
 
-  def run(dao: DAO, db: Database) {
+  def run(dao: DAO, db: Database): Future[Unit] = {
+    val h = new DAOHelper(dao)
     println("Using driver " + dao.driver)
-    db withSession { implicit session =>
-      dao.create
-      dao.insert("foo", "bar")
-      println("- Value for key 'foo': " + dao.get("foo"))
-      println("- Value for key 'baz': " + dao.get("baz"))
-      val h = new DAOHelper(dao)
-      println("- Using the helper: " +
-        h.dao.getFirst(h.restrictKey("foo", dao.props)))
-    }
+    db.run(DBIO.seq(
+      dao.create,
+      dao.insert("foo", "bar"),
+      dao.get("foo").map(r => println("- Value for key 'foo': " + r)),
+      dao.get("baz").map(r => println("- Value for key 'baz': " + r)),
+      h.dao.getFirst(h.restrictKey("foo", dao.props)).map(r => println("- Using the helper: " + r))
+    ).withPinnedSession)
   }
 
   try {
-    run(new DAO(H2Driver),
-      Database.forURL("jdbc:h2:mem:test1", driver = "org.h2.Driver"))
-    run(new DAO(SQLiteDriver),
-      Database.forURL("jdbc:sqlite::memory:", driver = "org.sqlite.JDBC"))
+    val f = {
+      val h2db = Database.forConfig("h2")
+      run(new DAO(H2Driver), h2db).andThen { case _ => h2db.close }
+    }.flatMap { _ =>
+      val sqlitedb = Database.forConfig("sqlite")
+      run(new DAO(SQLiteDriver), sqlitedb).andThen { case _ => sqlitedb.close }
+    }
+
+    Await.result(f, Duration.Inf)
   } finally Util.unloadDrivers
 }

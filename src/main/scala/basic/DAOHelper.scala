@@ -4,7 +4,7 @@ import scala.language.higherKinds
   * but in a DAO-independent way.
   */
 class DAOHelper(val dao: DAO) {
-  import dao.driver.simple._
+  import dao.driver.api._
 
   def restrictKey[C[_]](s: String, q: Query[DAO#Props, _, C]) =
     q.filter(_.key === s)

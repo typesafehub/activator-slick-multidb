@@ -1,9 +1,11 @@
+import scala.concurrent.ExecutionContext.Implicits.global
+
 /** A User contains a name, picture and ID */
 case class User(name: String, picture: Picture, id: Option[Int] = None)
 
 /** UserComponent provides database definitions for User objects */
 trait UserComponent { this: DriverComponent with PictureComponent =>
-  import driver.simple._
+  import driver.api._
 
   class Users(tag: Tag) extends Table[(String, Int, Option[Int])](tag, "USERS") {
     def id = column[Option[Int]]("USER_ID", O.PrimaryKey, O.AutoInc)
@@ -16,11 +18,10 @@ trait UserComponent { this: DriverComponent with PictureComponent =>
   private val usersAutoInc =
     users.map(u => (u.name, u.pictureId)) returning users.map(_.id)
 
-  def insert(user: User)(implicit session: Session): User = {
-    val pic =
+  def insert(user: User): DBIO[User] = for {
+    pic <-
       if(user.picture.id.isEmpty) insert(user.picture)
-      else user.picture
-    val id = usersAutoInc.insert(user.name, pic.id.get)
-    user.copy(picture = pic, id = id)
-  }
+      else DBIO.successful(user.picture)
+    id <- usersAutoInc += (user.name, pic.id.get)
+  } yield user.copy(picture = pic, id = id)
 }
