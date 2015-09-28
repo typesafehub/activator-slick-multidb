@@ -9,8 +9,8 @@ trait UserComponent { this: DriverComponent with PictureComponent =>
 
   class Users(tag: Tag) extends Table[(String, Int, Option[Int])](tag, "USERS") {
     def id = column[Option[Int]]("USER_ID", O.PrimaryKey, O.AutoInc)
-    def name = column[String]("USER_NAME", O.NotNull)
-    def pictureId = column[Int]("PIC_ID", O.NotNull)
+    def name = column[String]("USER_NAME")
+    def pictureId = column[Int]("PIC_ID")
     def * = (name, pictureId, id)
   }
   val users = TableQuery[Users]

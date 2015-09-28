@@ -17,7 +17,7 @@ class DAO(val driver: JdbcProfile) {
 
   /** Create the database schema */
   def create: DBIO[Unit] =
-    props.ddl.create
+    props.schema.create
 
   /** Insert a key/value pair */
   def insert(k: String, v: String): DBIO[Int] =

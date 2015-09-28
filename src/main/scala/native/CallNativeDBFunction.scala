@@ -21,7 +21,7 @@ object CallNativeDBFunction extends App {
 
   val dayOfWeek2 = SimpleFunction[Int]("day_of_week")
 
-  def dayOfWeek3(c: Column[Date]) = dayOfWeek2(Seq(c))
+  def dayOfWeek3(c: Rep[Date]) = dayOfWeek2(Seq(c))
 
   // Use the lifted function in a query to group by day of week
   val q1 = for {
@@ -32,7 +32,7 @@ object CallNativeDBFunction extends App {
 
   val db = Database.forConfig("h2")
   val f = db.run(DBIO.seq(
-    salesPerDay.ddl.create,
+    salesPerDay.schema.create,
     salesPerDay ++= Seq(
       (Date.valueOf("2011-04-01"), 3),
       (Date.valueOf("2011-04-02"), 8),

@@ -6,5 +6,5 @@ class DAL(val driver: JdbcProfile)
   import driver.api._
 
   def create =
-    (users.ddl ++ pictures.ddl).create
+    (users.schema ++ pictures.schema).create
 }

@@ -7,7 +7,7 @@
 <div>
     <h2>Introduction</h2>
     
-    <p>If you have gone through basic Slick tutorials like the <a href="https://typesafe.com/activator/template/hello-slick-3.0" target="_blank">Hello Slick</a> template, you probably noticed that they import features directly from database drivers, as in:</p>
+    <p>If you have gone through basic Slick tutorials like the <a href="https://typesafe.com/activator/template/hello-slick-3.1" target="_blank">Hello Slick</a> template, you probably noticed that they import features directly from database drivers, as in:</p>
 
     <pre>// Use H2Driver to connect to an H2 database
 import scala.slick.driver.H2Driver.api._</pre>
@@ -153,7 +153,7 @@ import slick.jdbc.JdbcBackend.Database</pre>
     <p>This is also a good place to add functionality that affects all components, like the <code>create</code> method:</p>
 
     <pre>def create =
-  (users.ddl ++ pictures.ddl).create</pre>
+  (users.schema ++ pictures.schema).create</pre>
 </div>
 
 <div>
@@ -161,7 +161,7 @@ import slick.jdbc.JdbcBackend.Database</pre>
 
     <p>Sometimes you need to use a (possibly database-specific) function that is not provided out of the box by Slick. For scalar functions (i.e. functions which operate on single-column values, but not aggregation functions) this is very easy to do, as shown in <a href="#code/src/main/scala/native/CallNativeDBFunction.scala" class="shortcut">CallNativeDBFunction.scala</a>.</p>
 
-    <p>H2 has a <code>day_of_week()</code> function which extracts the day of week from a timestamp value. We lift it to a Slick <code>SimpleFunction</code> which returns a <code>Column[Int]</code>. For functions with zero to three arguments, you can use the provided factory methods, as shown in the definition of <code>dayOfWeek</code>:</p>
+    <p>H2 has a <code>day_of_week()</code> function which extracts the day of week from a timestamp value. We lift it to a Slick <code>SimpleFunction</code> which returns a <code>Rep[Int]</code>. For functions with zero to three arguments, you can use the provided factory methods, as shown in the definition of <code>dayOfWeek</code>:</p>
 
     <pre>val dayOfWeek =
   SimpleFunction.unary[Date, Int]("day_of_week")</pre>
@@ -171,7 +171,7 @@ import slick.jdbc.JdbcBackend.Database</pre>
     <pre>val dayOfWeek2 =
   SimpleFunction[Int]("day_of_week")
 
-def dayOfWeek3(c: Column[Date]) =
+def dayOfWeek3(c: Rep[Date]) =
   dayOfWeek2(Seq(c))</pre>
 
     <p>The app then goes on to use <code>dayOfWeek</code> in a query, just like a built-in function. You can see the result by switching to the <a href="#run" class="shortcut">Run</a> page and selecting <code>CallNativeDBFunction</code> as the main class.</p>
